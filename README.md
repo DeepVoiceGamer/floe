@@ -24,6 +24,8 @@ I have expressed the logic behind what I am doing in three related but distinct 
 
 If you understand what this could be and want to help build it, that conversation is very welcome.
 
+This project wouldn't have been possible if I had read the documentation. I would have just parroted 'read the documentation' because it solved things for me. You often can't see the best solution when sufficient solutions are common.
+
 ---
 
 ## The idea
