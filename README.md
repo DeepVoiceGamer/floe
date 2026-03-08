@@ -36,6 +36,12 @@ The proposal is an interface layer that changes this. Every action taken through
 
 This tool should not be a reductive simplification tool. It should be a tool that makes mastery scalable and accessible.
 
+Standard workflow:
+Need a program → open browser → nix package search → navigate to package and choose config → copy → open config file → paste package → open terminal → rebuild
+
+Floe workflow:
+Open floe → search package → hit add → see changes immediately → rebuild
+
 ---
 
 ## On the GUI debate
