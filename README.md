@@ -44,7 +44,7 @@ The terminal would not be hidden behind floe. It would be integrated into it. Ev
 
 ## The prototype
 
-The prototype demonstrates the intended interaction model across six sections. Screenshots and recordings below show what the experience is meant to feel like.
+The prototype demonstrates the intended interaction model across six sections. Screenshots below show what the experience is meant to feel like.
 
 ### Dashboard
 
@@ -125,7 +125,7 @@ In its most complete intended form, the tutorial template would not be selected 
 
 ## Vision
 
-My vision is for floe to become a default part of NixOS, a way for new users to configure their system in a manner that does not assume technical literacy and does not hide the system's real depth.
+My vision is for floe to become a default part of NixOS, a way for new and experienced users to configure their system in a manner that does not assume technical literacy and does not hide the system's real depth.
 
 Additionally, given the nature of NixOS itself, a reproducible guided entry level version of the distribution would do more for adoption than anything else. floe is exceptionally suited to that environment. The biggest mistake that can be made is assuming everyone needs the exact same starting place.
 
@@ -166,7 +166,7 @@ Reading the papers linked at the top of this document before contributing will h
 ## Running the prototype
 
 ```bash
-git clone https://github.com/yourusername/floe
+git clone https://github.com/DeepVoiceGamer/floe
 cd floe
 npm install
 npm run dev
