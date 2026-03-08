@@ -2,6 +2,8 @@
 
 Gaius Soma
 
+[https://zenodo.org/records/18865887](https://zenodo.org/records/18865887)
+
 ## I. Introduction
 
 For most of the history of digital creation, the distance between imagining something and building it was enormous. Many people possessed ideas for tools, environments, games, platforms, or experiences that they believed would be meaningful or interesting. However, the ability to realize those ideas depended on technical specialization.

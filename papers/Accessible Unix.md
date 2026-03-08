@@ -2,6 +2,8 @@
 
 Gaius Soma
 
+[https://zenodo.org/records/18908032](https://zenodo.org/records/18908032)
+
 ## Abstract
 
 Unix systems are among the most powerful computing environments ever created. Their composability, transparency, and scriptability have enabled decades of innovation across software engineering, infrastructure, and research. Yet the human interface to these systems has remained largely unchanged. Interaction is still structured around internal operational primitives rather than human tasks.
