@@ -44,7 +44,7 @@ The terminal would not be hidden behind floe. It would be integrated into it. Ev
 
 ## The prototype
 
-The prototype demonstrates the intended interaction model across six sections. Screenshots and recordings below show what the experience is meant to feel like.
+The prototype demonstrates the intended interaction model across six sections. Screenshots below show what the experience is meant to feel like.
 
 ### Dashboard
 
