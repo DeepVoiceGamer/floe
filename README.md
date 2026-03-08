@@ -5,6 +5,8 @@
 This repository contains a UI prototype. It is not a functioning application. It exists to demonstrate a vision clearly enough that people who can build it understand what it is trying to be.
 
 ![floe dashboard](screenshots/packages.png)
+https://github.com/user-attachments/assets/1b119f06-7844-47ca-8534-5162635c13cb
+
 
 
 
