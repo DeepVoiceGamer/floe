@@ -166,7 +166,7 @@ Reading the papers linked at the top of this document before contributing will h
 ## Running the prototype
 
 ```bash
-git clone https://github.com/yourusername/floe
+git clone https://github.com/DeepVoiceGamer/floe
 cd floe
 npm install
 npm run dev
