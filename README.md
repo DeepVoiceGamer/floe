@@ -18,9 +18,9 @@ I am not a developer. AI tools allowed me to take raw ideas about an important a
 
 I have expressed the logic behind what I am doing in three related but distinct papers. Please read them to understand the approach and logic:
 
-- [Accessible Unix](papers/Accessible Unix.md) -- the philosophical foundation
-- [The Collapse of the Translation Barrier](papers/The Collapse of the Translation Barrier.md) -- why this project exists at all
-- [Utilizing Reproducibility for Diverse Entry Points](papers/Utilizing Reproducibility for Diverse Entry Points.md) -- the core insight specific to NixOS
+* [Accessible Unix](papers/accessible-unix.md) -- the philosophical foundation
+* [The Collapse of the Translation Barrier](papers/translation-barrier.md) -- why this project exists at all
+* [Utilizing Reproducibility for Diverse Entry Points](papers/reproducibility-entry-points.md) -- the core insight specific to NixOS
 
 If you understand what this could be and want to help build it, that conversation is very welcome.
 
