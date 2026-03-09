@@ -24,6 +24,8 @@ I have expressed the logic behind what I am doing in three related but distinct 
 
 If you understand what this could be and want to help build it, that conversation is very welcome.
 
+This project wouldn't have been possible if I had read the documentation. I would have just parroted 'read the documentation' because it solved things for me. You often can't see the best solution when sufficient solutions are common.
+
 ---
 
 ## The idea
@@ -35,6 +37,12 @@ None of that capability is accessible to someone who has never used a terminal.
 The proposal is an interface layer that changes this. Every action taken through floe would expose the underlying NixOS operation it performs. Add a package and watch the line appear in your configuration file in real time. Explore a NixOS option and see the exact nix expression it generates. Roll back to a previous generation the same way you would queue any other change. The system is never hidden. It is revealed progressively, starting from the moment you open the application.
 
 This tool should not be a reductive simplification tool. It should be a tool that makes mastery scalable and accessible.
+
+Standard workflow:
+Need a program → open browser → nix package search → navigate to package and choose config → copy/reference → open config file → paste/type package → open terminal → rebuild
+
+Floe workflow:
+Open floe → search package → hit add → see changes immediately → rebuild
 
 ---
 
