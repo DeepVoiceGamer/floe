@@ -4,7 +4,7 @@
 
 Floe is a conceptual system cockpit for NixOS. Browse and install packages, apply system templates, restructure your config, manage home-manager modules, update flake inputs, roll back generations, and generate bootable ISOs — all while watching your nix configuration update in real time.
 
-*This is a conceptual prototype. Do not use the nix configurations shown as reference — Accuracy is not a reasonable expectation.*
+*This is a conceptual prototype. Do not use the nix configurations shown as reference — Accuracy is not a reasonable expectation or intention at this stage.*
 
 **A proposed graphical system management interface for NixOS.**
 
