@@ -2,7 +2,7 @@
 
 **About**
 
-Floe is a conceptual system cockpit for NixOS. Browse and install packages, apply system templates, restructure your config, manage home-manager modules, update flake inputs, roll back generations, and generate bootable ISOs — all while watching your nix configuration update in real time."
+Floe is a conceptual system cockpit for NixOS. Browse and install packages, apply system templates, restructure your config, manage home-manager modules, update flake inputs, roll back generations, and generate bootable ISOs — all while watching your nix configuration update in real time.
 
 **A proposed graphical system management interface for NixOS.**
 
