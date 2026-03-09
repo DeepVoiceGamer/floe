@@ -189,17 +189,32 @@ Additionally, given the nature of NixOS itself, a reproducible guided entry leve
 
 ## Roadmap of intent
 
-**Phase one -- the package manager**
-A functioning package search connected to the real nixpkgs search API. Real configuration file reading and writing. Real nixos-rebuild execution with live terminal output. Support for both flakes and classic configurations.
+**Phase one -- the foundation**
+A stable, well-architected application shell. The navigation, the split panel interface, the staged changes model, the rebuild flow, and the terminal output panel all built to a standard that every subsequent phase can build on top of without revisiting. The two interface modes established as a genuine architectural distinction from the start, not retrofitted later. The configuration file abstraction layer that every other phase will read and write through.
 
-**Phase two -- configuration management**
-The NixOS options editor connected to the real options schema. Shell management. Flake input management. The full split panel interface with live configuration preview across all sections.
+**Phase two -- the package manager**
+A functioning package search connected to the real nixpkgs search API. Real configuration file reading and writing. Real nixos-rebuild execution with live terminal output. Support for both flakes and classic configurations. The staged changes model fully operational.
 
-**Phase three -- generations and history**
-Full generation browsing with real configuration snapshots. Rollback through the standard staged change flow.
+**Phase three -- system configuration**
+The theme page connected to real configuration files. Hostname, networking, locale, fonts, desktop environment, SDDM, GRUB, and LUKS all reading and writing real nix. The split panel interface with live configuration preview across all configuration sections.
 
-**Phase four -- templates and distribution**
-Curated starting configurations for each template category. The tutorial template as a guided first-run experience. Eventually a distributable NixOS image built around floe as a front door to the ecosystem.
+**Phase four -- environment management**
+Shell management reading and writing real shell configuration. Home Manager module management connected to the real home-manager options schema. Flake input management with real flake.lock parsing and update detection. Bidirectional sync between the interface and the configuration file fully operational across all three.
+
+**Phase five -- options, generations, and history**
+The NixOS options editor connected to the real options schema. Full generation browsing with real configuration snapshots pulled from the nix store. Rollback through the standard staged change flow.
+
+**Phase six -- config structure**
+Real configuration file parsing and analysis. Automatic modularization that understands the semantic structure of a NixOS configuration and produces a clean, correctly importing modular layout. Category-based organization and centralization as genuine file operations.
+
+**Phase seven -- templates and ISO**
+Curated and tested starting configurations for each template category. Real ISO generation connected to nix build. USB detection and writing integrated with the interface. The tutorial template as a guided first-run experience.
+
+**Phase eight -- distribution**
+A distributable NixOS image built around floe as a front door to the ecosystem. The tutorial template shipping as a bootable ISO that begins the guided experience on first boot. Terminal mode as a fully realized TUI-feel interface.
+
+
+
 
 **What floe should never be**
 
