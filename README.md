@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/1b119f06-7844-47ca-8534-5162635c13cb
 
 ## A note from the author
 
-I am not a developer. AI tools allowed me to take raw ideas about an important and missing resource, substantiate them, and steward them into the community.
+I am not a developer. AI tools allowed me to take raw ideas about an important and missing resource, substantiate them, and steward them into the community. This would not exist otherwise.
 
 I have expressed the logic behind what I am doing in three related but distinct papers. Please read them to understand the approach and logic:
 
