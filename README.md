@@ -60,7 +60,7 @@ The terminal would not be hidden behind floe. It would be integrated into it. Ev
 
 ## The prototype
 
-The prototype demonstrates the intended interaction model across six sections. Screenshots below show what the experience is meant to feel like.
+The prototype demonstrates the intended interaction model across eleven sections. Screenshots below show what the experience is meant to feel like.
 
 ### Dashboard
 
@@ -68,18 +68,41 @@ The prototype demonstrates the intended interaction model across six sections. S
 
 An overview of system health, current generation, warnings, and quick navigation to other sections. The right panel displays current system state as readable nix.
 
+### Templates
+
+![floe templates](screenshots/templates.png)
+
+A library of curated starting configurations: Bare, Entry, Workstation, Creation, Gaming, and Tutorial. Selecting a template previews its full nix configuration in the right panel. Applying one stages it as a pending change rather than immediately overwriting the system state.
+
+### Config Structure
+
+![floe structure](screenshots/structure.png)
+
+A view of how the current configuration is organized across files. The right panel shows the file structure as annotated text and can be edited directly. Changes reflect back to the left-side tree in real time. One-click actions for automatic modularization, category-based organization, and centralization are available.
+
 ### Packages
 
 ![floe packages](screenshots/packages.png)
 
-A package search interface connected to nixpkgs. Changes are staged as pending and applied together through a single rebuild. The right panel shows the configuration file updating in real time as packages are added or removed.
+A package search interface connected to nixpkgs. Changes are staged as pending and applied together through a single rebuild. The right panel shows the configuration file updating in real time as packages are added or removed. Editing the configuration directly in the right panel parses package names and updates the installed and pending state to match.
 
+### Home Manager
+
+![floe home](screenshots/home.png)
+
+Home Manager module management grouped by category. Enable or disable modules and inspect their configuration in the right panel. Editing `programs.<module>.enable` directly in the configuration panel updates the left-side enabled state in real time.
 
 ### Shells
 
 ![floe shells](screenshots/shells.png)
 
-Shell environment management. Enable or disable shells, set a default, and inspect the nix configuration for each shell in the right panel.
+Shell environment management. Enable or disable shells, set a default, and inspect the nix configuration for each shell in the right panel. Editing shell configuration directly updates the active state to match.
+
+### Theme
+
+![floe theme](screenshots/theme.png)
+
+System configuration grouped into seven areas: Hostname & Networking, Locale & Timezone, Fonts, Desktop Environment, SDDM / Login Screen, GRUB / Bootloader, and LUKS / Disk Encryption. Each area has an editable nix configuration in the right panel. Modified sections are tracked as pending changes.
 
 ### NixOS Options
 
@@ -87,18 +110,23 @@ Shell environment management. Enable or disable shells, set a default, and inspe
 
 A browsable and searchable NixOS options tree. Click any option and the right panel shows the exact nix expression it would generate.
 
-
 ### Flakes
 
 ![floe flakes](screenshots/flakes.png)
 
-Flake input management. See which inputs are current and which have updates available. Queue updates individually or all at once.
+Flake input management. See which inputs are current and which have updates available. Queue updates individually or all at once. Editing flake input URLs directly in the right panel updates the left-side display in real time.
 
 ### Generations
 
 ![floe generations](screenshots/generations.png)
 
 A full generation history. Click any generation to explore its configuration in the right panel. Queue a rollback to any previous generation as a staged change.
+
+### ISO Generation
+
+![floe iso](screenshots/iso.png)
+
+A two-step flow for building and writing bootable NixOS images. Step one: select a target from any of the six system templates — each produces a fully reproducible image of that configuration. Step two: select a detected USB device and write method (Ventoy, WoeUSB, or dd). The ISO is built first with live terminal output in the right panel. Once built, the write command appears with the real device path substituted in, and writing produces its own terminal output. The write button is red-tinted and disabled until both an ISO is built and a device is selected.
 
 ---
 

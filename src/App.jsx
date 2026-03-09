@@ -778,6 +778,7 @@ const Icons = {
   rollback: "M1 4v6h6M3.51 15a9 9 0 1 0 .49-3",
   download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
   usb: "M12 2v12M8 9l4 5 4-5M5 19h14M5 22h14",
+  theme: "M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM12 6a1 1 0 0 1 1 1v5l3.5 2-0.5 1L12 13V7a1 1 0 0 1 0 0z M7 3.34A10 10 0 0 1 15.66 3 M3.34 7A10 10 0 0 1 3 12",
   check: "M20 6 9 17l-5-5",
   folder: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z",
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6",
@@ -2015,7 +2016,7 @@ function Generations({ T, tm, pending, setPending }) {
 
 function IsoGeneration({ T, tm, pending, setPending }) {
   const [method, setMethod] = useState("ventoy");
-  const [isoType, setIsoType] = useState("current");
+  const [isoType, setIsoType] = useState("bare");
   const [building, setBuilding] = useState(false);
   const [buildDone, setBuildDone] = useState(false);
   const [buildLines, setBuildLines] = useState([]);
@@ -2041,11 +2042,14 @@ function IsoGeneration({ T, tm, pending, setPending }) {
     { path: "/dev/sdd", label: "Generic USB Drive 8GB", size: "8G" },
   ];
 
-  const isoTypes = [
-    { id: "current", label: "Current System", desc: "Bootable image of your exact current configuration", size: "~1.8 GB" },
-    { id: "minimal", label: "Minimal Install", desc: "Bare NixOS installer with your flake bundled", size: "~650 MB" },
-    { id: "tutorial", label: "Tutorial System", desc: "Tutorial template with guided first-boot experience", size: "~1.4 GB" },
-  ];
+  const ISO_SIZES = { bare: "~650 MB", entry: "~1.4 GB", workstation: "~1.8 GB", creation: "~2.1 GB", gaming: "~2.4 GB", tutorial: "~1.4 GB" };
+  const isoTypes = TEMPLATES.map(t => ({
+    id: t.id,
+    label: t.name,
+    desc: t.tagline,
+    size: ISO_SIZES[t.id] || "~1.5 GB",
+    color: t.color,
+  }));
 
   const methods = [
     { id: "ventoy", label: "Ventoy", desc: "Recommended. Copy ISO to Ventoy-formatted USB. Supports multiple ISOs." },
@@ -2181,12 +2185,12 @@ $ cp nixos-${isoType}.iso /run/media/user/Ventoy/
                 background: isoType === type.id ? T.surfaceAlt : "transparent",
                 cursor: "pointer", transition: "background 0.1s",
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                borderLeft: isoType === type.id ? `2px solid ${T.accent}` : "2px solid transparent",
+                borderLeft: isoType === type.id ? `2px solid ${type.color || T.accent}` : "2px solid transparent",
               }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px" }}>
-                    <span style={{ fontWeight: tm ? 400 : 600, fontSize: "13px", fontFamily: tm ? "'DM Mono', monospace" : "inherit", color: isoType === type.id ? T.accent : T.text }}>{type.label}</span>
-                    {isoType === type.id && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: T.accentSoft, color: T.accent, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>selected</span>}
+                    <span style={{ fontWeight: tm ? 400 : 600, fontSize: "13px", fontFamily: tm ? "'DM Mono', monospace" : "inherit", color: isoType === type.id ? (type.color || T.accent) : T.text }}>{type.label}</span>
+                    {isoType === type.id && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: (type.color || T.accent) + "22", color: type.color || T.accent, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>selected</span>}
                   </div>
                   <div style={{ fontSize: "11px", color: T.textMuted, fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>{type.desc}</div>
                 </div>
@@ -2378,6 +2382,272 @@ function generatePkgConfig(installedSet, configType) {
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
 
+// ─── THEME ──────────────────────────────────────────────────────────────────
+
+const THEME_SECTIONS = [
+  {
+    id: "hostname",
+    label: "Hostname & Networking",
+    icon: "M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z",
+    description: "System hostname, network manager, firewall",
+    config: `# hostname-networking.nix
+{ config, pkgs, ... }:
+{
+  networking.hostName = "nixos";
+  networking.networkmanager.enable = true;
+  networking.firewall.enable = true;
+  networking.firewall.allowedTCPPorts = [ 22 80 443 ];
+
+  # Optional: static IP
+  # networking.interfaces.eth0.ipv4.addresses = [{
+  #   address = "192.168.1.100";
+  #   prefixLength = 24;
+  # }];
+}`,
+  },
+  {
+    id: "locale",
+    label: "Locale & Timezone",
+    icon: "M12 2a10 10 0 1 0 0 20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10M2 12h20M12 2v20",
+    description: "Language, locale, timezone, keyboard layout",
+    config: `# locale.nix
+{ config, pkgs, ... }:
+{
+  time.timeZone = "Europe/London";
+
+  i18n.defaultLocale = "en_US.UTF-8";
+  i18n.extraLocaleSettings = {
+    LC_ADDRESS        = "en_US.UTF-8";
+    LC_IDENTIFICATION = "en_US.UTF-8";
+    LC_MEASUREMENT    = "en_US.UTF-8";
+    LC_MONETARY       = "en_US.UTF-8";
+    LC_NAME           = "en_US.UTF-8";
+    LC_NUMERIC        = "en_US.UTF-8";
+    LC_PAPER          = "en_US.UTF-8";
+    LC_TELEPHONE      = "en_US.UTF-8";
+    LC_TIME           = "en_US.UTF-8";
+  };
+
+  services.xserver.xkb = {
+    layout  = "us";
+    variant = "";
+  };
+}`,
+  },
+  {
+    id: "fonts",
+    label: "Fonts",
+    icon: "M4 7V4h16v3M9 20h6M12 4v16",
+    description: "System fonts, font rendering, DPI",
+    config: `# fonts.nix
+{ config, pkgs, ... }:
+{
+  fonts = {
+    enableDefaultPackages = true;
+    packages = with pkgs; [
+      noto-fonts
+      noto-fonts-cjk-sans
+      noto-fonts-emoji
+      liberation_ttf
+      fira-code
+      fira-code-symbols
+      (nerdfonts.override { fonts = [ "JetBrainsMono" "FiraCode" ]; })
+    ];
+
+    fontconfig = {
+      defaultFonts = {
+        serif     = [ "Noto Serif" ];
+        sansSerif = [ "Noto Sans" ];
+        monospace = [ "JetBrainsMono Nerd Font" ];
+      };
+    };
+  };
+}`,
+  },
+  {
+    id: "desktop",
+    label: "Desktop Environment",
+    icon: "M3 3h18v13H3zM9 21h6M12 16v5",
+    description: "Display server, desktop environment, display manager",
+    config: `# desktop.nix
+{ config, pkgs, ... }:
+{
+  services.xserver.enable = true;
+
+  # Desktop environment — uncomment one:
+  services.xserver.desktopManager.gnome.enable = true;
+  # services.xserver.desktopManager.plasma5.enable = true;
+  # services.xserver.desktopManager.xfce.enable = true;
+
+  # Hardware acceleration
+  hardware.opengl.enable = true;
+  hardware.opengl.driSupport32Bit = true;
+
+  environment.systemPackages = with pkgs; [
+    gnome-tweaks
+    gnomeExtensions.appindicator
+  ];
+}`,
+  },
+  {
+    id: "sddm",
+    label: "SDDM / Login Screen",
+    icon: "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3",
+    description: "Display manager, greeter theme, autologin",
+    config: `# sddm.nix
+{ config, pkgs, ... }:
+{
+  services.displayManager.sddm = {
+    enable      = true;
+    wayland.enable = true;
+    theme       = "breeze";
+    autoNumlock = true;
+  };
+
+  # Autologin — use with care
+  # services.displayManager.autoLogin = {
+  #   enable = true;
+  #   user   = "your-username";
+  # };
+
+  environment.systemPackages = with pkgs; [
+    sddm-kcm  # SDDM settings module for KDE
+  ];
+}`,
+  },
+  {
+    id: "grub",
+    label: "GRUB / Bootloader",
+    icon: "M5 12h14M12 5l7 7-7 7",
+    description: "Boot loader, kernel parameters, timeout, theme",
+    config: `# grub.nix
+{ config, pkgs, ... }:
+{
+  boot.loader = {
+    systemd-boot.enable = false;
+    grub = {
+      enable    = true;
+      device    = "nodev";
+      efiSupport = true;
+      useOSProber = true;
+      theme     = pkgs.nixos-grub2-theme;
+      timeout   = 5;
+    };
+    efi.canTouchEfiVariables = true;
+  };
+
+  boot.kernelParams = [
+    "quiet"
+    "splash"
+    "loglevel=3"
+  ];
+}`,
+  },
+  {
+    id: "luks",
+    label: "LUKS / Disk Encryption",
+    icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+    description: "Full disk encryption, LUKS devices, key files",
+    config: `# luks.nix
+{ config, pkgs, ... }:
+{
+  boot.initrd.luks.devices = {
+    "luks-root" = {
+      device     = "/dev/disk/by-uuid/YOUR-UUID-HERE";
+      preLVM     = true;
+      allowDiscards = true;  # Enable for SSDs
+    };
+  };
+
+  # Optional: keyfile on USB for unlock
+  # boot.initrd.luks.devices."luks-root".keyFile = "/dev/disk/by-id/usb-...-part1";
+  # boot.initrd.luks.devices."luks-root".keyFileSize = 4096;
+
+  # Required for LUKS + SSD TRIM
+  boot.kernelParams = [ "rd.luks.options=discard" ];
+}`,
+  },
+];
+
+function Theme({ T, tm, pending, setPending }) {
+  const [selected, setSelected] = useState(THEME_SECTIONS[0].id);
+  const section = THEME_SECTIONS.find(s => s.id === selected);
+  const themePending = pending.filter(p => p.screen === "theme");
+
+  return (
+    <div style={{ display: "flex", height: "100%" }}>
+      {/* Left: section list */}
+      <div style={{ width: "52%", display: "flex", flexDirection: "column", borderRight: `1px solid ${T.border}`, overflow: "hidden" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: T.textFaint, marginBottom: "10px", fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
+            {tm ? "system configuration" : "System Configuration"}
+          </div>
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden" }}>
+            {THEME_SECTIONS.map((sec, i) => {
+              const isSelected = selected === sec.id;
+              const isPending = pending.some(p => p.screen === "theme" && p.label === sec.id && p.action === "edit");
+              return (
+                <div key={sec.id} onClick={() => setSelected(sec.id)} style={{
+                  padding: "12px 14px", borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
+                  background: isSelected ? T.surfaceAlt : "transparent",
+                  cursor: "pointer", transition: "background 0.1s",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  borderLeft: isSelected ? `2px solid ${T.accent}` : "2px solid transparent",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isSelected ? T.accent : T.textMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d={sec.icon} />
+                    </svg>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "2px" }}>
+                        <span style={{ fontWeight: tm ? 400 : 600, fontSize: "13px", fontFamily: tm ? "'DM Mono', monospace" : "inherit", color: isSelected ? T.accent : T.text }}>
+                          {tm ? sec.label.toLowerCase() : sec.label}
+                        </span>
+                        {isPending && (
+                          <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: "rgba(245,166,35,0.12)", color: "#f5a623", border: "1px solid rgba(245,166,35,0.25)", fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>
+                            modified
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "11px", color: T.textMuted, fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
+                        {sec.description}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ padding: "7px 14px", borderTop: `1px solid ${T.border}`, fontSize: "10.5px", color: T.textFaint, background: T.surface, fontFamily: "'DM Mono', monospace" }}>
+          theme
+          {themePending.length > 0 && <span style={{ float: "right", color: "#f5a623" }}>{themePending.length} modified</span>}
+        </div>
+      </div>
+
+      {/* Right: editable config */}
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
+        <RightPanel
+          title={`theme/${selected}.nix`}
+          subtitle={section?.description}
+          dot={pending.some(p => p.screen === "theme" && p.label === selected && p.action === "edit")}
+          T={T}
+        >
+          <EditableCode
+            code={section?.config || ""}
+            theme={T.theme}
+            screenKey="theme"
+            label={selected}
+            pending={pending}
+            setPending={setPending}
+          />
+        </RightPanel>
+      </div>
+    </div>
+  );
+}
+
+
 const NAV = [
   { id: "dashboard",   label: "Dashboard",  icon: Icons.dashboard },
   { id: "templates",   label: "Templates",  icon: Icons.templates },
@@ -2385,6 +2655,7 @@ const NAV = [
   { id: "packages",    label: "Packages",   icon: Icons.packages },
   { id: "home",        label: "Home",       icon: Icons.home },
   { id: "shells",      label: "Shells",     icon: Icons.shells },
+  { id: "theme",       label: "Theme",      icon: Icons.theme },
   { id: "options",     label: "Options",    icon: Icons.options },
   { id: "flakes",      label: "Flakes",     icon: Icons.flakes },
   { id: "generations", label: "Generations",icon: Icons.generations },
@@ -2708,6 +2979,7 @@ export default function Floe() {
             {screen === "packages"    && <Packages T={T} tm={tm} installedSet={installedSet} setInstalledSet={setInstalledSet} pending={pending} setPending={setPending} configType={configType} addedPkgs={addedPkgs} removedPkgs={removedPkgs} />}
             {screen === "home"        && <HomeManager T={T} tm={tm} pending={pending} setPending={setPending} />}
             {screen === "shells"      && <Shells T={T} tm={tm} pending={pending} setPending={setPending} />}
+            {screen === "theme"       && <Theme T={T} tm={tm} pending={pending} setPending={setPending} />}
             {screen === "options"     && <NixOptions T={T} tm={tm} pending={pending} setPending={setPending} />}
             {screen === "flakes"      && <Flakes T={T} tm={tm} pending={pending} setPending={setPending} />}
             {screen === "generations" && <Generations T={T} tm={tm} pending={pending} setPending={setPending} />}
