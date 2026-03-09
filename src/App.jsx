@@ -838,6 +838,80 @@ function NixCode({ code, addedLines = new Set(), removedLines = new Set(), theme
   );
 }
 
+// ─── EDITABLE CODE PANEL ─────────────────────────────────────────────────────
+
+function EditableCode({ code, theme, onChange, onParse, screenKey, pending, setPending, label }) {
+  const [value, setValue] = useState(code);
+  const original = useRef(code);
+
+  // When the authoritative code changes (e.g. switching selected item), reset
+  useEffect(() => {
+    original.current = code;
+    setValue(code);
+    setPending(prev => prev.filter(p => !(p.screen === screenKey && p.action === "edit" && p.label === label)));
+  }, [code]);
+
+  const handleChange = (e) => {
+    const next = e.target.value;
+    setValue(next);
+    if (next !== original.current) {
+      setPending(prev => {
+        const without = prev.filter(p => !(p.screen === screenKey && p.action === "edit" && p.label === label));
+        return [...without, { screen: screenKey, action: "edit", label: label || "config", name: label || "config", editedCode: next }];
+      });
+    } else {
+      setPending(prev => prev.filter(p => !(p.screen === screenKey && p.action === "edit" && p.label === label)));
+    }
+    if (onParse) onParse(next);
+    if (onChange) onChange(next);
+  };
+
+  const tm = theme === "terminal";
+  const isDirty = value !== original.current;
+
+  return (
+    <div style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column" }}>
+      {isDirty && (
+        <div style={{
+          position: "absolute", top: "6px", right: "14px", zIndex: 2,
+          fontSize: "9px", padding: "2px 7px", borderRadius: "3px",
+          background: "rgba(254,188,46,0.15)", border: "1px solid rgba(254,188,46,0.3)",
+          color: "#febc2e", fontFamily: "'DM Mono', monospace", pointerEvents: "none",
+        }}>modified</div>
+      )}
+      <textarea
+        value={value}
+        onChange={handleChange}
+        spellCheck={false}
+        style={{
+          flex: 1, width: "100%", minHeight: "280px",
+          background: "transparent", border: "none", outline: "none", resize: "none",
+          fontFamily: "'DM Mono', monospace", fontSize: "11.5px", lineHeight: "1.7",
+          color: tm ? "#33ff33" : "rgba(255,255,255,0.72)",
+          padding: "6px 14px 14px 36px",
+          caretColor: tm ? "#33ff33" : "#5b8dee",
+          borderLeft: isDirty ? "2px solid rgba(254,188,46,0.4)" : "2px solid transparent",
+          transition: "border-color 0.15s",
+        }}
+      />
+      {/* Line numbers overlay — purely visual, doesn't interfere with textarea */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0, width: "32px",
+        pointerEvents: "none", overflow: "hidden", paddingTop: "6px",
+      }}>
+        {value.split("\n").map((_, i) => (
+          <div key={i} style={{
+            height: "19.55px", display: "flex", alignItems: "center", justifyContent: "flex-end",
+            paddingRight: "6px", fontSize: "10px",
+            color: tm ? "#1a3a1a" : "rgba(255,255,255,0.12)",
+            fontFamily: "'DM Mono', monospace",
+          }}>{i + 1}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── RIGHT PANEL WRAPPER ─────────────────────────────────────────────────────
 
 function RightPanel({ title, subtitle, children, T, dot }) {
@@ -860,6 +934,53 @@ function RightPanel({ title, subtitle, children, T, dot }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 0", display: "flex", flexDirection: "column" }}>{children}</div>
     </div>
   );
+}
+
+// ─── NIX PARSERS ─────────────────────────────────────────────────────────────
+
+// Extract package attrs from `environment.systemPackages = with pkgs; [ ... ]`
+function parsePackagesFromNix(code) {
+  const match = code.match(/systemPackages\s*=\s*with\s+pkgs\s*;\s*\[([\s\S]*?)\]/);
+  if (!match) return null;
+  const block = match[1];
+  const attrs = new Set();
+  for (const line of block.split("\n")) {
+    const t = line.trim().replace(/[;,]$/, "");
+    if (!t || t.startsWith("#")) continue;
+    // accept bare names like "git" or qualified "pkgs.git"
+    const name = t.startsWith("pkgs.") ? t : `pkgs.${t}`;
+    attrs.add(name);
+  }
+  return attrs;
+}
+
+// Extract `programs.<id>.enable = true/false` from home config
+function parseHomeEnableFromNix(code, moduleId) {
+  // Look for programs.<moduleId>.enable = true/false
+  const re = new RegExp(`programs\\.${moduleId}\\s*=\\s*\\{[\\s\\S]*?enable\\s*=\\s*(true|false)`);
+  const m = code.match(re);
+  if (!m) return null;
+  return m[1] === "true";
+}
+
+// Extract `programs.<shell>.enable = true/false`
+function parseShellEnableFromNix(code, shellId) {
+  const re = new RegExp(`programs\\.${shellId}\\s*=\\s*\\{[\\s\\S]*?enable\\s*=\\s*(true|false)`);
+  const m = code.match(re);
+  if (!m) return null;
+  return m[1] === "true";
+}
+
+// Extract flake input urls: `<name>.url = "<url>"`
+function parseFlakeInputsFromNix(code) {
+  const result = {};
+  const re = /(\w[\w-]*)\s*=\s*\{[\s\S]*?url\s*=\s*"([^"]+)"/g;
+  // also handle inline: `<name>.url = "<url>"`
+  const inline = /(\w[\w-]*)\.url\s*=\s*"([^"]+)"/g;
+  let m;
+  while ((m = re.exec(code)) !== null) result[m[1]] = m[2];
+  while ((m = inline.exec(code)) !== null) result[m[1]] = m[2];
+  return result;
 }
 
 // ─── SCREENS ─────────────────────────────────────────────────────────────────
@@ -1120,10 +1241,10 @@ function Templates({ T, tm, pending, setPending, currentTemplate, setCurrentTemp
         </div>
       </div>
 
-      {/* Right: config preview */}
+      {/* Right: config editor */}
       <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
-        <RightPanel title={`templates/${tpl.id}.nix`} subtitle={tpl.tagline} dot={queued?.templateId === tpl.id} T={T}>
-          <NixCode code={tpl.config} theme={T.theme} />
+        <RightPanel title={`templates/${tpl.id}.nix`} subtitle={tpl.tagline} dot={queued?.templateId === tpl.id || pending.some(p => p.screen === "templates" && p.action === "edit")} T={T}>
+          <EditableCode code={tpl.config} theme={T.theme} screenKey="templates" label={tpl.id} pending={pending} setPending={setPending} />
         </RightPanel>
       </div>
     </div>
@@ -1287,6 +1408,25 @@ function Packages({ T, tm, installedSet, setInstalledSet, pending, setPending, c
     setPending(prev => [...prev, { screen: "packages", action: "stack", stackId: stack.id, name: stack.name, attr: "stack_" + stack.id }]);
   };
 
+  const handleCodeParse = (code) => {
+    const parsed = parsePackagesFromNix(code);
+    if (!parsed) return;
+    // Compute adds/removes relative to current installedSet
+    const newPending = pending.filter(p => p.screen !== "packages" || p.action === "stack");
+    const toAdd = [...parsed].filter(a => !installedSet.has(a));
+    const toRemove = [...installedSet].filter(a => !parsed.has(a));
+    const pkgLookup = PACKAGES.reduce((acc, p) => { acc[p.attr] = p; return acc; }, {});
+    toAdd.forEach(attr => {
+      const pkg = pkgLookup[attr] || { attr, name: attr.replace("pkgs.", ""), version: "?", description: "custom package" };
+      newPending.push({ ...pkg, action: "add", screen: "packages" });
+    });
+    toRemove.forEach(attr => {
+      const pkg = pkgLookup[attr] || { attr, name: attr.replace("pkgs.", ""), version: "?", description: "" };
+      newPending.push({ ...pkg, action: "remove", screen: "packages" });
+    });
+    setPending(prev => [...prev.filter(p => p.screen !== "packages" || p.action === "stack"), ...newPending.filter(p => p.screen === "packages")]);
+  };
+
   const previewInstalled = new Set([
     ...Array.from(installedSet).filter(a => !removedPkgs.has(a)),
     ...Array.from(addedPkgs),
@@ -1416,7 +1556,7 @@ function Packages({ T, tm, installedSet, setInstalledSet, pending, setPending, c
 
       <div ref={configRef} style={{ flex: 1, minWidth: 0, overflowY: "auto", background: T.codeBg }}>
         <RightPanel title={configType === "flake" ? "flake.nix" : "configuration.nix"} subtitle="live preview" dot={pending.filter(p=>p.screen==="packages").length > 0} T={T}>
-          <NixCode code={configText} addedLines={addedPkgs} removedLines={removedPkgs} theme={T.theme} />
+          <EditableCode code={configText} theme={T.theme} screenKey="packages" label="config" pending={pending} setPending={setPending} onParse={handleCodeParse} />
         </RightPanel>
       </div>
     </div>
@@ -1425,14 +1565,32 @@ function Packages({ T, tm, installedSet, setInstalledSet, pending, setPending, c
 
 function HomeManager({ T, tm, pending, setPending }) {
   const [selected, setSelected] = useState("git");
+  // Per-module overrides parsed from edited code: { moduleId: true|false }
+  const [parsedEnables, setParsedEnables] = useState({});
 
   const toggleModule = (mod) => {
     const ex = pending.find(p => p.screen === "home" && p.moduleId === mod.id);
     if (ex) { setPending(prev => prev.filter(p => !(p.screen === "home" && p.moduleId === mod.id))); return; }
+    const effectiveEnabled = parsedEnables[mod.id] !== undefined ? parsedEnables[mod.id] : mod.enabled;
     setPending(prev => [...prev, {
-      screen: "home", action: mod.enabled ? "disable" : "enable",
+      screen: "home", action: effectiveEnabled ? "disable" : "enable",
       moduleId: mod.id, name: mod.name
     }]);
+  };
+
+  const handleCodeParse = (code) => {
+    const enable = parseHomeEnableFromNix(code, selected);
+    if (enable === null) return;
+    setParsedEnables(prev => ({ ...prev, [selected]: enable }));
+    // Stage pending if differs from original module state
+    const mod = HOME_MODULES.find(m => m.id === selected);
+    if (!mod) return;
+    const differs = enable !== mod.enabled;
+    setPending(prev => {
+      const without = prev.filter(p => !(p.screen === "home" && p.moduleId === selected && p.action !== "edit"));
+      if (differs) return [...without, { screen: "home", action: enable ? "enable" : "disable", moduleId: selected, name: mod.name }];
+      return without;
+    });
   };
 
   const homePending = pending.filter(p => p.screen === "home");
@@ -1451,7 +1609,8 @@ function HomeManager({ T, tm, pending, setPending }) {
               <div style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: T.textFaint, marginBottom: "6px", fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>{cat}</div>
               <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden" }}>
                 {HOME_MODULES.filter(m => m.category === cat).map((mod, i, arr) => {
-                  const p = pending.find(px => px.screen === "home" && px.moduleId === mod.id);
+                  const p = pending.find(px => px.screen === "home" && px.moduleId === mod.id && px.action !== "edit");
+                  const effectiveEnabled = parsedEnables[mod.id] !== undefined ? parsedEnables[mod.id] : mod.enabled;
                   return (
                     <div key={mod.id} onClick={() => setSelected(mod.id)} style={{
                       padding: "10px 12px", borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
@@ -1461,20 +1620,20 @@ function HomeManager({ T, tm, pending, setPending }) {
                     }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "2px" }}>
-                          <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: tm ? 400 : 600, fontSize: "13px", color: mod.enabled ? T.green : T.text }}>{mod.name}</span>
-                          {mod.enabled && !p && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: T.greenSoft, color: T.green, border: `1px solid rgba(52,199,123,0.2)`, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>enabled</span>}
+                          <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: tm ? 400 : 600, fontSize: "13px", color: effectiveEnabled ? T.green : T.text }}>{mod.name}</span>
+                          {effectiveEnabled && !p && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: T.greenSoft, color: T.green, border: `1px solid rgba(52,199,123,0.2)`, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>enabled</span>}
                           {p && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: p.action === "enable" ? T.greenSoft : T.redSoft, color: p.action === "enable" ? T.green : T.red, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{p.action}</span>}
                         </div>
                         <div style={{ fontSize: "11px", color: T.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>{mod.description}</div>
                       </div>
                       <button onClick={e => { e.stopPropagation(); toggleModule(mod); }} style={{
                         fontSize: "10px", padding: "3px 8px", borderRadius: tm ? "1px" : "5px",
-                        background: p ? (p.action === "enable" ? T.greenSoft : T.redSoft) : mod.enabled ? T.redSoft : T.greenSoft,
-                        border: `1px solid ${p ? (p.action === "enable" ? "rgba(52,199,123,0.2)" : "rgba(240,96,96,0.2)") : mod.enabled ? "rgba(240,96,96,0.2)" : "rgba(52,199,123,0.2)"}`,
-                        color: p ? (p.action === "enable" ? T.green : T.red) : mod.enabled ? T.red : T.green,
+                        background: p ? (p.action === "enable" ? T.greenSoft : T.redSoft) : effectiveEnabled ? T.redSoft : T.greenSoft,
+                        border: `1px solid ${p ? (p.action === "enable" ? "rgba(52,199,123,0.2)" : "rgba(240,96,96,0.2)") : effectiveEnabled ? "rgba(240,96,96,0.2)" : "rgba(52,199,123,0.2)"}`,
+                        color: p ? (p.action === "enable" ? T.green : T.red) : effectiveEnabled ? T.red : T.green,
                         cursor: "pointer", fontFamily: "'DM Mono', monospace", flexShrink: 0, marginLeft: "10px",
                       }}>
-                        {p ? (tm ? "undo" : "Undo") : mod.enabled ? (tm ? "disable" : "Disable") : (tm ? "enable" : "Enable")}
+                        {p ? (tm ? "undo" : "Undo") : effectiveEnabled ? (tm ? "disable" : "Disable") : (tm ? "enable" : "Enable")}
                       </button>
                     </div>
                   );
@@ -1489,8 +1648,8 @@ function HomeManager({ T, tm, pending, setPending }) {
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
-        <RightPanel title={`home/${selectedMod.id}.nix`} subtitle={selectedMod.category.toLowerCase()} T={T}>
-          <NixCode code={selectedMod.config} theme={T.theme} />
+        <RightPanel title={`home/${selectedMod.id}.nix`} subtitle={selectedMod.category.toLowerCase()} dot={pending.some(p => p.screen === "home" && p.action === "edit" && p.label === selectedMod.id)} T={T}>
+          <EditableCode code={selectedMod.config} theme={T.theme} screenKey="home" label={selectedMod.id} pending={pending} setPending={setPending} onParse={handleCodeParse} />
         </RightPanel>
       </div>
     </div>
@@ -1499,7 +1658,22 @@ function HomeManager({ T, tm, pending, setPending }) {
 
 function Shells({ T, tm, pending, setPending }) {
   const [selected, setSelected] = useState("bash");
+  const [parsedActives, setParsedActives] = useState({});
   const shellPending = pending.filter(p => p.screen === "shells");
+
+  const handleCodeParse = (code) => {
+    const enable = parseShellEnableFromNix(code, selected);
+    if (enable === null) return;
+    setParsedActives(prev => ({ ...prev, [selected]: enable }));
+    const shell = SHELLS.find(s => s.id === selected);
+    if (!shell) return;
+    const differs = enable !== shell.active;
+    setPending(prev => {
+      const without = prev.filter(p => !(p.screen === "shells" && p.id === selected && p.action !== "set-default" && p.action !== "edit"));
+      if (differs) return [...without, { ...shell, screen: "shells", action: enable ? "enable" : "disable" }];
+      return without;
+    });
+  };
 
   const toggleShell = (shell) => {
     const existing = pending.find(p => p.screen === "shells" && p.id === shell.id);
@@ -1522,8 +1696,8 @@ function Shells({ T, tm, pending, setPending }) {
           </div>
           <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden" }}>
             {SHELLS.map((shell, i) => {
-              const p = pending.find(px => px.screen === "shells" && px.id === shell.id);
-              const isActive = shell.active;
+              const p = pending.find(px => px.screen === "shells" && px.id === shell.id && px.action !== "edit");
+              const isActive = parsedActives[shell.id] !== undefined ? parsedActives[shell.id] : shell.active;
               return (
                 <div key={shell.id} onClick={() => setSelected(shell.id)} style={{
                   padding: "12px 14px", borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
@@ -1561,8 +1735,8 @@ function Shells({ T, tm, pending, setPending }) {
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
-        <RightPanel title={`shells/${selected}.nix`} subtitle="shell config" T={T}>
-          <NixCode code={SHELL_CONFIGS[selected] || "# Select a shell"} theme={T.theme} />
+        <RightPanel title={`shells/${selected}.nix`} subtitle="shell config" dot={pending.some(p => p.screen === "shells" && p.action === "edit" && p.label === selected)} T={T}>
+          <EditableCode code={SHELL_CONFIGS[selected] || "# Select a shell"} theme={T.theme} screenKey="shells" label={selected} pending={pending} setPending={setPending} onParse={handleCodeParse} />
         </RightPanel>
       </div>
     </div>
@@ -1646,8 +1820,8 @@ function NixOptions({ T, tm, pending, setPending }) {
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
-        <RightPanel title="option.nix" subtitle={selected?.key} T={T}>
-          <NixCode code={optionConfig} theme={T.theme} />
+        <RightPanel title="option.nix" subtitle={selected?.key} dot={pending.some(p => p.screen === "options" && p.action === "edit" && p.label === selected?.key)} T={T}>
+          <EditableCode code={optionConfig} theme={T.theme} screenKey="options" label={selected?.key} pending={pending} setPending={setPending} />
         </RightPanel>
       </div>
     </div>
@@ -1655,12 +1829,37 @@ function NixOptions({ T, tm, pending, setPending }) {
 }
 
 function Flakes({ T, tm, pending, setPending }) {
-  const flakePending = pending.filter(p => p.screen === "flakes");
+  const [parsedUrls, setParsedUrls] = useState({});
+  const flakePending = pending.filter(p => p.screen === "flakes" && p.action !== "edit");
 
   const queueUpdate = (input) => {
-    const ex = pending.find(p => p.screen === "flakes" && p.name === input.name);
-    if (ex) { setPending(prev => prev.filter(p => !(p.screen === "flakes" && p.name === input.name))); return; }
+    const ex = pending.find(p => p.screen === "flakes" && p.name === input.name && p.action === "update");
+    if (ex) { setPending(prev => prev.filter(p => !(p.screen === "flakes" && p.name === input.name && p.action === "update"))); return; }
     setPending(prev => [...prev, { ...input, screen: "flakes", action: "update" }]);
+  };
+
+  const handleCodeParse = (code) => {
+    const urls = parseFlakeInputsFromNix(code);
+    if (!Object.keys(urls).length) return;
+    setParsedUrls(urls);
+    // For each known input, if URL changed, stage as modified
+    FLAKE_INPUTS.forEach(input => {
+      if (!(input.name in urls)) return;
+      const changed = urls[input.name] !== input.url;
+      setPending(prev => {
+        const withoutMod = prev.filter(p => !(p.screen === "flakes" && p.name === input.name && p.action === "modify"));
+        if (changed) return [...withoutMod, { ...input, screen: "flakes", action: "modify", name: input.name, url: urls[input.name] }];
+        return withoutMod;
+      });
+    });
+    // Detect new inputs not in FLAKE_INPUTS
+    Object.entries(urls).forEach(([name, url]) => {
+      if (FLAKE_INPUTS.find(i => i.name === name)) return;
+      setPending(prev => {
+        if (prev.find(p => p.screen === "flakes" && p.name === name && p.action === "add-input")) return prev;
+        return [...prev, { screen: "flakes", action: "add-input", name, url }];
+      });
+    });
   };
 
   const flakeConfig = `# flake.nix — inputs
@@ -1694,30 +1893,33 @@ ${FLAKE_INPUTS.map(i => {
           </div>
           <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden" }}>
             {FLAKE_INPUTS.map((input, i) => {
-              const p = pending.find(px => px.screen === "flakes" && px.name === input.name);
+              const p = pending.find(px => px.screen === "flakes" && px.name === input.name && px.action !== "edit");
+              const effectiveUrl = parsedUrls[input.name] || input.url;
+              const urlChanged = parsedUrls[input.name] && parsedUrls[input.name] !== input.url;
               return (
                 <div key={input.name} style={{
                   padding: "12px 14px", borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
-                  background: p ? T.accentSoft : input.outdated ? "rgba(245,166,35,0.04)" : "transparent",
+                  background: urlChanged ? "rgba(167,139,250,0.06)" : p ? T.accentSoft : input.outdated ? "rgba(245,166,35,0.04)" : "transparent",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
                       <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: tm ? 400 : 600, fontSize: "13px" }}>{input.name}</span>
-                      {input.outdated && !p && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: "rgba(245,166,35,0.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,0.2)", fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>outdated</span>}
-                      {!input.outdated && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: T.greenSoft, color: T.green, border: `1px solid rgba(52,199,123,0.2)`, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>current</span>}
-                      {p && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: T.accentSoft, color: T.accent, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>updating</span>}
+                      {urlChanged && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.3)", fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>url changed</span>}
+                      {!urlChanged && input.outdated && !p && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: "rgba(245,166,35,0.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,0.2)", fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>outdated</span>}
+                      {!urlChanged && !input.outdated && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: T.greenSoft, color: T.green, border: `1px solid rgba(52,199,123,0.2)`, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>current</span>}
+                      {p && p.action === "update" && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: tm ? "1px" : "3px", background: T.accentSoft, color: T.accent, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>updating</span>}
                     </div>
                     <button onClick={() => queueUpdate(input)} style={{
                       fontSize: "10px", padding: "3px 9px", borderRadius: tm ? "1px" : "5px",
-                      background: p ? T.accentSoft : input.outdated ? "rgba(245,166,35,0.08)" : T.surfaceAlt,
-                      border: `1px solid ${p ? "rgba(91,141,238,0.25)" : input.outdated ? "rgba(245,166,35,0.2)" : T.border}`,
-                      color: p ? T.accent : input.outdated ? "#f5a623" : T.textMuted,
+                      background: p?.action === "update" ? T.accentSoft : input.outdated ? "rgba(245,166,35,0.08)" : T.surfaceAlt,
+                      border: `1px solid ${p?.action === "update" ? "rgba(91,141,238,0.25)" : input.outdated ? "rgba(245,166,35,0.2)" : T.border}`,
+                      color: p?.action === "update" ? T.accent : input.outdated ? "#f5a623" : T.textMuted,
                       cursor: "pointer", fontFamily: "'DM Mono', monospace",
                     }}>
-                      {p ? (tm ? "undo" : "Undo") : (tm ? "update" : "Update")}
+                      {p?.action === "update" ? (tm ? "undo" : "Undo") : (tm ? "update" : "Update")}
                     </button>
                   </div>
-                  <div style={{ fontSize: "11px", color: T.textMuted, fontFamily: "'DM Mono', monospace", marginBottom: "2px" }}>{input.url}</div>
+                  <div style={{ fontSize: "11px", color: urlChanged ? "#a78bfa" : T.textMuted, fontFamily: "'DM Mono', monospace", marginBottom: "2px" }}>{effectiveUrl}</div>
                   <div style={{ fontSize: "10.5px", color: T.textFaint, fontFamily: "'DM Mono', monospace" }}>
                     locked {input.locked} · rev {input.rev}
                   </div>
@@ -1732,8 +1934,8 @@ ${FLAKE_INPUTS.map(i => {
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
-        <RightPanel title="flake.nix" subtitle="inputs" dot={flakePending.length > 0} T={T}>
-          <NixCode code={flakeConfig} theme={T.theme} />
+        <RightPanel title="flake.nix" subtitle="inputs" dot={flakePending.length > 0 || pending.some(p => p.screen === "flakes" && p.action === "edit")} T={T}>
+          <EditableCode code={flakeConfig} theme={T.theme} screenKey="flakes" label="flake" pending={pending} setPending={setPending} onParse={handleCodeParse} />
         </RightPanel>
       </div>
     </div>
@@ -1803,8 +2005,8 @@ function Generations({ T, tm, pending, setPending }) {
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
-        <RightPanel title={`generation-${selected?.id}.nix`} subtitle={selected?.date} T={T}>
-          <NixCode code={GEN_CONFIGS(selected?.id || 47)} theme={T.theme} />
+        <RightPanel title={`generation-${selected?.id}.nix`} subtitle={selected?.date} dot={pending.some(p => p.screen === "generations" && p.action === "edit")} T={T}>
+          <EditableCode code={GEN_CONFIGS(selected?.id || 47)} theme={T.theme} screenKey="generations" label={String(selected?.id)} pending={pending} setPending={setPending} />
         </RightPanel>
       </div>
     </div>
@@ -1817,11 +2019,27 @@ function IsoGeneration({ T, tm, pending, setPending }) {
   const [building, setBuilding] = useState(false);
   const [buildDone, setBuildDone] = useState(false);
   const [buildLines, setBuildLines] = useState([]);
+  const [device, setDevice] = useState("");
+  const [writing, setWriting] = useState(false);
+  const [writeDone, setWriteDone] = useState(false);
+  const [writeLines, setWriteLines] = useState([]);
   const buildRef = useRef(null);
+  const writeRef = useRef(null);
 
   useEffect(() => {
     if (buildRef.current) buildRef.current.scrollTop = buildRef.current.scrollHeight;
   }, [buildLines]);
+
+  useEffect(() => {
+    if (writeRef.current) writeRef.current.scrollTop = writeRef.current.scrollHeight;
+  }, [writeLines]);
+
+  // Simulated detected USB devices
+  const usbDevices = [
+    { path: "/dev/sdb", label: "SanDisk Ultra 32GB", size: "32G" },
+    { path: "/dev/sdc", label: "Kingston DataTraveler 16GB", size: "16G" },
+    { path: "/dev/sdd", label: "Generic USB Drive 8GB", size: "8G" },
+  ];
 
   const isoTypes = [
     { id: "current", label: "Current System", desc: "Bootable image of your exact current configuration", size: "~1.8 GB" },
@@ -1837,25 +2055,64 @@ function IsoGeneration({ T, tm, pending, setPending }) {
 
   const selectedType = isoTypes.find(t => t.id === isoType);
 
+  const dev = device || "/dev/sdX";
+
   const writeCommand = method === "dd"
     ? `# Flash ISO to USB drive
-# Replace /dev/sdX with your USB device
-# WARNING: this will erase the target drive
-$ sudo dd if=nixos-${isoType}.iso of=/dev/sdX \\
+# WARNING: this will erase ${dev}
+$ sudo dd if=nixos-${isoType}.iso of=${dev} \\
     bs=4M status=progress conv=fsync`
     : method === "woeusb"
     ? `# Flash with WoeUSB
 $ sudo woeusb \\
-    --target /dev/sdX \\
+    --target ${dev} \\
     --device nixos-${isoType}.iso`
     : `# Ventoy method
 # 1. Format USB with Ventoy (one time)
-$ sudo ventoy -i /dev/sdX
+$ sudo ventoy -i ${dev}
 
 # 2. Copy ISO to the Ventoy partition
 $ cp nixos-${isoType}.iso /run/media/user/Ventoy/
 
 # Done — boot USB and select the ISO`;
+
+  const handleWrite = async () => {
+    if (!device || writing) return;
+    setWriting(true); setWriteDone(false); setWriteLines([]);
+    const selectedDev = usbDevices.find(d => d.path === device);
+    const lines = method === "ventoy"
+      ? [
+          `$ sudo ventoy -i ${device}`,
+          `formatting ${device} with Ventoy...`,
+          `  creating Ventoy partition...`,
+          `  writing bootloader...`,
+          `✓ ${device} formatted with Ventoy`,
+          `$ cp nixos-${isoType}.iso /run/media/user/Ventoy/`,
+          `  copying nixos-${isoType}-x86_64-linux.iso...`,
+          `✓ ISO copied to Ventoy drive`,
+        ]
+      : method === "woeusb"
+      ? [
+          `$ sudo woeusb --target ${device} --device nixos-${isoType}.iso`,
+          `checking target device ${device} (${selectedDev?.size})...`,
+          `  unmounting partitions...`,
+          `  writing filesystem...`,
+          `  copying ISO contents...`,
+          `✓ written to ${device}`,
+        ]
+      : [
+          `$ sudo dd if=nixos-${isoType}.iso of=${device} bs=4M status=progress conv=fsync`,
+          `  1073741824 bytes transferred`,
+          `  2147483648 bytes transferred`,
+          `  syncing...`,
+          `✓ written to ${device} — safe to eject`,
+        ];
+    for (const line of lines) {
+      await new Promise(r => setTimeout(r, 160 + Math.random() * 140));
+      setWriteLines(prev => [...prev, line]);
+    }
+    setWriting(false); setWriteDone(true);
+  };
 
   const isoConfig = `# iso-configuration.nix
 # Generates: nixos-${isoType}-x86_64-linux.iso
@@ -1910,11 +2167,14 @@ $ cp nixos-${isoType}.iso /run/media/user/Ventoy/
       <div style={{ width: "52%", display: "flex", flexDirection: "column", borderRight: `1px solid ${T.border}`, overflow: "hidden" }}>
         <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
 
-          {/* ISO type */}
-          <div style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: T.textFaint, marginBottom: "8px", fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
-            {tm ? "iso type" : "ISO Type"}
+          {/* Step 1 label */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <span style={{ width: "18px", height: "18px", borderRadius: tm ? "2px" : "50%", background: T.accentSoft, border: `1px solid ${T.accent}44`, color: T.accent, fontSize: "10px", fontWeight: 700, fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>1</span>
+            <span style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: T.textFaint, fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
+              {tm ? "select iso type" : "Select ISO Type"}
+            </span>
           </div>
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden", marginBottom: "16px" }}>
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden", marginBottom: "20px" }}>
             {isoTypes.map((type, i) => (
               <div key={type.id} onClick={() => setIsoType(type.id)} style={{
                 padding: "11px 13px", borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
@@ -1935,86 +2195,173 @@ $ cp nixos-${isoType}.iso /run/media/user/Ventoy/
             ))}
           </div>
 
-          {/* Write method */}
-          <div style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: T.textFaint, marginBottom: "8px", fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
-            {tm ? "write method" : "Write Method"}
+          {/* Step 2 label */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <span style={{ width: "18px", height: "18px", borderRadius: tm ? "2px" : "50%", background: buildDone ? T.greenSoft : T.surfaceAlt, border: `1px solid ${buildDone ? T.green + "44" : T.border}`, color: buildDone ? T.green : T.textFaint, fontSize: "10px", fontWeight: 700, fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>2</span>
+            <span style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: buildDone ? T.textMuted : T.textFaint, fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
+              {tm ? "write to usb" : "Write to USB"}
+            </span>
           </div>
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden", marginBottom: "16px" }}>
-            {methods.map((m, i) => (
-              <div key={m.id} onClick={() => setMethod(m.id)} style={{
-                padding: "10px 13px", borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
-                background: method === m.id ? T.surfaceAlt : "transparent",
-                cursor: "pointer", transition: "background 0.1s",
-                display: "flex", alignItems: "flex-start", gap: "10px",
-                borderLeft: method === m.id ? `2px solid ${T.accent}` : "2px solid transparent",
-              }}>
-                <div style={{
-                  width: "14px", height: "14px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
-                  border: `2px solid ${method === m.id ? T.accent : T.border}`,
-                  background: method === m.id ? T.accent : "transparent",
-                  display: "flex", alignItems: "center", justifyContent: "center",
+          <div style={{ opacity: buildDone ? 1 : 0.45, transition: "opacity 0.2s" }}>
+            {/* Write method selector */}
+            <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: "hidden", marginBottom: "10px" }}>
+              {methods.map((m, i) => (
+                <div key={m.id} onClick={() => buildDone && setMethod(m.id)} style={{
+                  padding: "10px 13px", borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
+                  background: method === m.id ? T.surfaceAlt : "transparent",
+                  cursor: buildDone ? "pointer" : "default", transition: "background 0.1s",
+                  display: "flex", alignItems: "flex-start", gap: "10px",
+                  borderLeft: method === m.id ? `2px solid ${T.accent}` : "2px solid transparent",
                 }}>
-                  {method === m.id && <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff" }} />}
+                  <div style={{
+                    width: "14px", height: "14px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
+                    border: `2px solid ${method === m.id ? T.accent : T.border}`,
+                    background: method === m.id ? T.accent : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {method === m.id && <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff" }} />}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: tm ? 400 : 600, fontSize: "12.5px", fontFamily: tm ? "'DM Mono', monospace" : "inherit", color: method === m.id ? T.accent : T.text, marginBottom: "2px" }}>{m.label}</div>
+                    <div style={{ fontSize: "11px", color: T.textMuted, fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>{m.desc}</div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: tm ? 400 : 600, fontSize: "12.5px", fontFamily: tm ? "'DM Mono', monospace" : "inherit", color: method === m.id ? T.accent : T.text, marginBottom: "2px" }}>{m.label}</div>
-                  <div style={{ fontSize: "11px", color: T.textMuted, fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>{m.desc}</div>
-                </div>
+              ))}
+            </div>
+
+            {/* Device selector */}
+            <div style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: T.textFaint, marginBottom: "6px", fontFamily: "'DM Mono', monospace" }}>
+              {tm ? "target device" : "Target Device"}
+            </div>
+            <div style={{ background: T.surface, border: `1px solid ${device ? T.accent + "55" : T.border}`, borderRadius: T.radius, overflow: "hidden", marginBottom: "10px" }}>
+              <div style={{ padding: "7px 12px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: "7px" }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.textFaint} strokeWidth="1.8" strokeLinecap="round"><path d={Icons.usb} /></svg>
+                <span style={{ fontSize: "10px", color: T.textFaint, fontFamily: "'DM Mono', monospace" }}>
+                  {tm ? "detected usb devices" : "Detected USB devices"}
+                </span>
               </div>
-            ))}
+              {usbDevices.map((d, i) => (
+                <div key={d.path} onClick={() => buildDone && setDevice(d.path)} style={{
+                  padding: "9px 12px", borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
+                  background: device === d.path ? T.accentSoft : "transparent",
+                  cursor: buildDone ? "pointer" : "default", transition: "background 0.1s",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  borderLeft: device === d.path ? `2px solid ${T.accent}` : "2px solid transparent",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{
+                      width: "12px", height: "12px", borderRadius: "50%", flexShrink: 0,
+                      border: `2px solid ${device === d.path ? T.accent : T.border}`,
+                      background: device === d.path ? T.accent : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      {device === d.path && <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#fff" }} />}
+                    </div>
+                    <div>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "12px", fontWeight: tm ? 400 : 500, color: device === d.path ? T.accent : T.text }}>{d.path}</span>
+                      <span style={{ fontSize: "10.5px", color: T.textMuted, fontFamily: "'DM Mono', monospace", marginLeft: "8px" }}>{d.label}</span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: "10px", color: T.textFaint, fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>{d.size}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Write button */}
+            <button
+              onClick={handleWrite}
+              disabled={!buildDone || !device || writing}
+              style={{
+                width: "100%", padding: "10px", borderRadius: tm ? "2px" : "8px",
+                background: writeDone ? "rgba(52,199,123,0.1)" : (!device || !buildDone) ? T.surfaceAlt : writing ? "rgba(255,255,255,0.04)" : tm ? "transparent" : "rgba(240,96,96,0.15)",
+                border: `1px solid ${writeDone ? "rgba(52,199,123,0.3)" : (!device || !buildDone) ? T.border : writing ? "rgba(255,255,255,0.08)" : "rgba(240,96,96,0.3)"}`,
+                color: writeDone ? T.green : (!device || !buildDone) ? T.textFaint : writing ? "rgba(255,255,255,0.35)" : tm ? "#ff8888" : "#ff9090",
+                fontSize: "12px", fontWeight: tm ? 400 : 600,
+                fontFamily: tm ? "'DM Mono', monospace" : "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "7px",
+                cursor: (!buildDone || !device || writing) ? "default" : "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {writing
+                ? <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span> {tm ? "writing..." : "Writing to USB..."}</>
+                : writeDone
+                ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> {tm ? "written — safe to eject" : "Written — safe to eject"}</>
+                : !device
+                ? (tm ? "select a device first" : "Select a device first")
+                : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={Icons.usb} /></svg> {tm ? `write to ${device}` : `Write to ${device}`}</>
+              }
+            </button>
           </div>
 
-          {/* Build button */}
-          <button onClick={handleBuild} disabled={building} style={{
-            width: "100%", padding: "11px", borderRadius: tm ? "2px" : "9px",
-            background: building ? T.surfaceAlt : tm ? "transparent" : T.accent,
-            border: tm ? `1px solid ${T.accent}` : "none",
-            color: building ? T.textMuted : tm ? T.accent : "#fff",
-            fontSize: "13px", fontWeight: tm ? 400 : 600,
-            fontFamily: tm ? "'DM Mono', monospace" : "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-            cursor: building ? "default" : "pointer", transition: "all 0.15s",
-          }}>
-            {building
-              ? <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span> {tm ? "building..." : "Building ISO..."}</>
-              : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={Icons.download} /></svg> {tm ? `build ${isoType} iso` : `Build ${selectedType.label} ISO`}</>
-            }
-          </button>
-
-          {/* Build output */}
-          {buildLines.length > 0 && (
-            <div style={{ marginTop: "12px", background: T.codeBg, borderRadius: tm ? "2px" : "8px", overflow: "hidden", border: `1px solid rgba(255,255,255,0.06)` }}>
-              <div ref={buildRef} style={{ padding: "10px 14px", fontFamily: "'DM Mono', monospace", fontSize: "11px", lineHeight: "1.7", maxHeight: "130px", overflowY: "auto" }}>
-                {buildLines.map((line, i) => (
-                  <div key={i} style={{ color: line.startsWith("✓") ? T.green : line.startsWith("$") ? "#7ebae4" : line.startsWith("  ") ? "rgba(255,255,255,0.38)" : "rgba(255,255,255,0.65)" }}>{line}</div>
-                ))}
-                {building && <span style={{ color: T.accent, animation: "blink 1s infinite" }}>▊</span>}
-              </div>
-            </div>
-          )}
-
-          {buildDone && (
-            <div style={{ marginTop: "8px", padding: "9px 12px", borderRadius: tm ? "2px" : "8px", background: T.greenSoft, border: `1px solid rgba(52,199,123,0.2)`, display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: T.green, fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-              {tm ? `iso ready — copy to usb with ${method}` : `ISO ready. Write to USB using ${methods.find(m=>m.id===method)?.label}.`}
-            </div>
-          )}
         </div>
         <div style={{ padding: "7px 14px", borderTop: `1px solid ${T.border}`, fontSize: "10.5px", color: T.textFaint, background: T.surface, fontFamily: "'DM Mono', monospace" }}>
-          ./result/iso/
+          {buildDone ? `nixos-${isoType}-x86_64-linux.iso` : "./result/iso/"}
+          {buildDone && <span style={{ float: "right", color: T.green }}>{selectedType?.size}</span>}
         </div>
       </div>
 
-      {/* Right panel: split between config and write command */}
+      {/* Right panel: step 1 generate + step 2 write */}
       <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg, display: "flex", flexDirection: "column" }}>
-        <RightPanel title={`iso-${isoType}.nix`} subtitle={`${selectedType?.size}`} T={T}>
-          <NixCode code={isoConfig} theme={T.theme} />
-          <div style={{ margin: "10px 0 2px", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "10px" }}>
-            <div style={{ padding: "0 14px 6px", fontSize: "10px", color: "rgba(255,255,255,0.2)", fontFamily: "'DM Mono', monospace" }}>
-              # write to usb — {method}
+        <RightPanel title={`iso-${isoType}.nix`} subtitle={selectedType?.size} dot={pending.some(p => p.screen === "iso" && p.action === "edit")} T={T}>
+
+          {/* Generate ISO section */}
+          <div style={{ padding: "10px 14px 14px", borderBottom: "1px solid rgba(255,255,255,0.05)", flexShrink: 0 }}>
+            <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.2)", fontFamily: "'DM Mono', monospace", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+              # step 1 — generate iso
             </div>
-            <NixCode code={writeCommand} theme={T.theme} />
+            <button onClick={handleBuild} disabled={building} style={{
+              width: "100%", padding: "9px", borderRadius: tm ? "2px" : "7px",
+              background: building ? "rgba(255,255,255,0.04)" : buildDone ? "rgba(52,199,123,0.12)" : tm ? "transparent" : "rgba(91,141,238,0.18)",
+              border: `1px solid ${building ? "rgba(255,255,255,0.08)" : buildDone ? "rgba(52,199,123,0.3)" : "rgba(91,141,238,0.3)"}`,
+              color: building ? "rgba(255,255,255,0.35)" : buildDone ? "#34c77b" : tm ? "#33ff33" : "#7eb3ff",
+              fontSize: "12px", fontWeight: tm ? 400 : 600,
+              fontFamily: tm ? "'DM Mono', monospace" : "inherit",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              cursor: building ? "default" : "pointer", transition: "all 0.15s",
+            }}>
+              {building
+                ? <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span> {tm ? "building..." : "Building ISO..."}</>
+                : buildDone
+                ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> {tm ? "iso built" : `${selectedType?.label} ISO built`}</>
+                : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={Icons.download} /></svg> {tm ? `generate ${isoType} iso` : `Generate ${selectedType?.label} ISO`}</>
+              }
+            </button>
+            {buildLines.length > 0 && (
+              <div style={{ marginTop: "8px", background: "rgba(0,0,0,0.2)", borderRadius: tm ? "2px" : "6px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.04)" }}>
+                <div ref={buildRef} style={{ padding: "8px 12px", fontFamily: "'DM Mono', monospace", fontSize: "10.5px", lineHeight: "1.7", maxHeight: "110px", overflowY: "auto" }}>
+                  {buildLines.map((line, i) => (
+                    <div key={i} style={{ color: line.startsWith("✓") ? "#34c77b" : line.startsWith("$") ? "#7ebae4" : line.startsWith("  ") ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.6)" }}>{line}</div>
+                  ))}
+                  {building && <span style={{ color: "#5b8dee", animation: "blink 1s infinite" }}>▊</span>}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* ISO config editor */}
+          <EditableCode code={isoConfig} theme={T.theme} screenKey="iso" label={isoType} pending={pending} setPending={setPending} />
+
+          {/* Write to USB section — only shown after build */}
+          {buildDone && (
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", flexShrink: 0 }}>
+              <div style={{ padding: "10px 14px 6px", fontSize: "10px", color: "rgba(255,255,255,0.2)", fontFamily: "'DM Mono', monospace", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                # step 2 — write to usb ({method}{device ? ` → ${device}` : ""})
+              </div>
+              <NixCode code={writeCommand} theme={T.theme} />
+              {writeLines.length > 0 && (
+                <div style={{ margin: "6px 14px 10px", background: "rgba(0,0,0,0.2)", borderRadius: tm ? "2px" : "6px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.04)" }}>
+                  <div ref={writeRef} style={{ padding: "8px 12px", fontFamily: "'DM Mono', monospace", fontSize: "10.5px", lineHeight: "1.7", maxHeight: "100px", overflowY: "auto" }}>
+                    {writeLines.map((line, i) => (
+                      <div key={i} style={{ color: line.startsWith("✓") ? "#34c77b" : line.startsWith("$") ? "#7ebae4" : line.startsWith("  ") ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.6)" }}>{line}</div>
+                    ))}
+                    {writing && <span style={{ color: "#f06060", animation: "blink 1s infinite" }}>▊</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </RightPanel>
       </div>
     </div>
@@ -2327,8 +2674,8 @@ export default function Floe() {
                     display: "inline-flex", alignItems: "center", gap: "5px",
                     padding: "3px 8px", borderRadius: tm ? "2px" : "5px", fontSize: "11px",
                     fontFamily: "'DM Mono', monospace",
-                    background: p.action === "add" || p.action === "enable" || p.action === "update" || p.action === "apply" || p.action === "stack" ? T.greenSoft : p.action === "rollback" || p.action === "modify" || p.action === "restructure" ? T.accentSoft : T.redSoft,
-                    color: p.action === "add" || p.action === "enable" || p.action === "update" || p.action === "apply" || p.action === "stack" ? T.green : p.action === "rollback" || p.action === "modify" || p.action === "restructure" ? T.accent : T.red,
+                    background: p.action === "add" || p.action === "enable" || p.action === "update" || p.action === "apply" || p.action === "stack" ? T.greenSoft : p.action === "rollback" || p.action === "modify" || p.action === "restructure" || p.action === "edit" ? T.accentSoft : T.redSoft,
+                    color: p.action === "add" || p.action === "enable" || p.action === "update" || p.action === "apply" || p.action === "stack" ? T.green : p.action === "rollback" || p.action === "modify" || p.action === "restructure" || p.action === "edit" ? T.accent : T.red,
                     border: `1px solid rgba(0,0,0,0.1)`,
                   }}>
                     {p.action} {p.name || p.key || (p.id ? `#${p.id}` : "")}
