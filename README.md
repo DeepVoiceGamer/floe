@@ -130,6 +130,16 @@ A full generation history. Click any generation to explore its configuration in 
 
 A bootable image builder for NixOS configurations. Select a template as the build target, choose a write method (Ventoy, WoeUSB, or dd), select a detected USB device, and write directly from the interface. The right panel shows live terminal output for both the build and write steps.
 
+### Other sections
+
+Floe is not designed around a fixed feature set. The architecture should always allow expansion into different layers, both simpler and greater, without sacrificing accessibility or depth.
+
+---
+
+## floe itself
+
+It should be declarative within itself 😊
+
 ---
 
 ## The rebuild flow
