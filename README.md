@@ -128,7 +128,7 @@ A full generation history. Click any generation to explore its configuration in 
 
 ![floe iso](screenshots/iso.png)
 
-A two-step flow for building and writing bootable NixOS images. Step one: select a target from any of the six system templates — each produces a fully reproducible image of that configuration. Step two: select a detected USB device and write method (Ventoy, WoeUSB, or dd). The ISO is built first with live terminal output in the right panel. Once built, the write command appears with the real device path substituted in, and writing produces its own terminal output. The write button is red-tinted and disabled until both an ISO is built and a device is selected.
+A bootable image builder for NixOS configurations. Select a template as the build target, choose a write method (Ventoy, WoeUSB, or dd), select a detected USB device, and write directly from the interface. The right panel shows live terminal output for both the build and write steps.
 
 ---
 
