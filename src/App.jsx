@@ -805,7 +805,7 @@ function NixCode({ code, addedLines = new Set(), removedLines = new Set(), theme
     removedFg: tm ? "#ff4444" : "#f06060",
   };
   return (
-    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "11.5px", lineHeight: "1.7" }}>
+    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "11.5px", lineHeight: "1.7", overflow: "hidden" }}>
       {code.split("\n").map((line, i) => {
         const tr = line.trim();
         const isAdded = addedLines.has(tr.replace(/[,\s]/g, ""));
@@ -926,7 +926,7 @@ function Dashboard({ T, tm, pending, allPendingCount, onNavigate, currentTemplat
   return (
     <div style={{ display: "flex", height: "100%" }}>
       {/* Left panel */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+      <div style={{ width: "52%", overflowY: "auto", padding: "20px" }}>
         <div style={{ marginBottom: "20px" }}>
           <div style={{ fontSize: tm ? "13px" : "18px", fontWeight: tm ? 400 : 700, marginBottom: "4px", fontFamily: tm ? "'DM Mono', monospace" : "inherit", letterSpacing: tm ? "0.05em" : "-0.02em" }}>
             {tm ? "floe dashboard" : "System Dashboard"}
@@ -1008,7 +1008,7 @@ function Dashboard({ T, tm, pending, allPendingCount, onNavigate, currentTemplat
       </div>
 
       {/* Right panel: system context — mix of visual and code */}
-      <div style={{ width: "48%", borderLeft: `1px solid ${T.border}`, background: T.codeBg, display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, borderLeft: `1px solid ${T.border}`, background: T.codeBg, display: "flex", flexDirection: "column" }}>
         <RightPanel title="system.context" subtitle="live state" T={T}>
           {/* Visual summary strip */}
           <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid rgba(255,255,255,0.05)`, display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -1121,7 +1121,7 @@ function Templates({ T, tm, pending, setPending, currentTemplate, setCurrentTemp
       </div>
 
       {/* Right: config preview */}
-      <div style={{ width: "48%", background: T.codeBg }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
         <RightPanel title={`templates/${tpl.id}.nix`} subtitle={tpl.tagline} dot={queued?.templateId === tpl.id} T={T}>
           <NixCode code={tpl.config} theme={T.theme} />
         </RightPanel>
@@ -1187,20 +1187,6 @@ function ConfigStructure({ T, tm, pending, setPending }) {
       <div style={{ width: "52%", display: "flex", flexDirection: "column", borderRight: `1px solid ${T.border}`, overflow: "hidden" }}>
         <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
 
-          <div style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: T.textFaint, marginBottom: "6px", fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
-            {tm ? "current structure" : "Current Structure"}
-          </div>
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: "10px 12px", marginBottom: "16px" }}>
-            {parsedFiles.length > 0 ? parsedFiles.map((item, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "3px 0", fontSize: "12px", fontFamily: "'DM Mono', monospace", paddingLeft: `${item.depth * 14}px` }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={item.type === "dir" ? T.accent : T.textFaint} strokeWidth="1.8" strokeLinecap="round">
-                  <path d={item.type === "dir" ? Icons.folder : Icons.file} />
-                </svg>
-                <span style={{ color: item.type === "dir" ? T.accent : T.textMuted }}>{item.name}</span>
-              </div>
-            )) : <span style={{ fontSize: "11px", color: T.textFaint, fontFamily: "'DM Mono', monospace" }}>no files</span>}
-          </div>
-
           <div style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: T.textFaint, marginBottom: "10px", fontFamily: tm ? "'DM Mono', monospace" : "inherit" }}>
             {tm ? "restructure actions" : "Restructure Actions"}
           </div>
@@ -1246,7 +1232,7 @@ function ConfigStructure({ T, tm, pending, setPending }) {
         </div>
       </div>
 
-      <div style={{ width: "48%", background: T.codeBg }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
         <RightPanel
           title={mode === "modular" ? "target: modules/" : mode === "byCategory" ? "target: by-category/" : "target: configuration.nix"}
           subtitle="editable"
@@ -1428,7 +1414,7 @@ function Packages({ T, tm, installedSet, setInstalledSet, pending, setPending, c
         </div>
       </div>
 
-      <div ref={configRef} style={{ width: "48%", overflowY: "auto", background: T.codeBg }}>
+      <div ref={configRef} style={{ flex: 1, minWidth: 0, overflowY: "auto", background: T.codeBg }}>
         <RightPanel title={configType === "flake" ? "flake.nix" : "configuration.nix"} subtitle="live preview" dot={pending.filter(p=>p.screen==="packages").length > 0} T={T}>
           <NixCode code={configText} addedLines={addedPkgs} removedLines={removedPkgs} theme={T.theme} />
         </RightPanel>
@@ -1502,7 +1488,7 @@ function HomeManager({ T, tm, pending, setPending }) {
           {homePending.length > 0 && <span style={{ float: "right", color: T.accent }}>{homePending.length} pending</span>}
         </div>
       </div>
-      <div style={{ width: "48%", background: T.codeBg }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
         <RightPanel title={`home/${selectedMod.id}.nix`} subtitle={selectedMod.category.toLowerCase()} T={T}>
           <NixCode code={selectedMod.config} theme={T.theme} />
         </RightPanel>
@@ -1574,7 +1560,7 @@ function Shells({ T, tm, pending, setPending }) {
           {shellPending.length > 0 && <span style={{ float: "right", color: T.accent }}>{shellPending.length} pending</span>}
         </div>
       </div>
-      <div style={{ width: "48%", background: T.codeBg }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
         <RightPanel title={`shells/${selected}.nix`} subtitle="shell config" T={T}>
           <NixCode code={SHELL_CONFIGS[selected] || "# Select a shell"} theme={T.theme} />
         </RightPanel>
@@ -1659,7 +1645,7 @@ function NixOptions({ T, tm, pending, setPending }) {
           {optPending.length > 0 && <span style={{ float: "right", color: T.accent }}>{optPending.length} pending</span>}
         </div>
       </div>
-      <div style={{ width: "48%", background: T.codeBg }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
         <RightPanel title="option.nix" subtitle={selected?.key} T={T}>
           <NixCode code={optionConfig} theme={T.theme} />
         </RightPanel>
@@ -1745,7 +1731,7 @@ ${FLAKE_INPUTS.map(i => {
           {flakePending.length > 0 && <span style={{ float: "right", color: T.accent }}>{flakePending.length} inputs pending</span>}
         </div>
       </div>
-      <div style={{ width: "48%", background: T.codeBg }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
         <RightPanel title="flake.nix" subtitle="inputs" dot={flakePending.length > 0} T={T}>
           <NixCode code={flakeConfig} theme={T.theme} />
         </RightPanel>
@@ -1816,7 +1802,7 @@ function Generations({ T, tm, pending, setPending }) {
           {genPending && <span style={{ float: "right", color: T.accent }}>rollback to #{genPending.id} queued</span>}
         </div>
       </div>
-      <div style={{ width: "48%", background: T.codeBg }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg }}>
         <RightPanel title={`generation-${selected?.id}.nix`} subtitle={selected?.date} T={T}>
           <NixCode code={GEN_CONFIGS(selected?.id || 47)} theme={T.theme} />
         </RightPanel>
@@ -2020,7 +2006,7 @@ $ cp nixos-${isoType}.iso /run/media/user/Ventoy/
       </div>
 
       {/* Right panel: split between config and write command */}
-      <div style={{ width: "48%", background: T.codeBg, display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", background: T.codeBg, display: "flex", flexDirection: "column" }}>
         <RightPanel title={`iso-${isoType}.nix`} subtitle={`${selectedType?.size}`} T={T}>
           <NixCode code={isoConfig} theme={T.theme} />
           <div style={{ margin: "10px 0 2px", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "10px" }}>
@@ -2160,7 +2146,7 @@ export default function Floe() {
   const currentNav = NAV.find(n => n.id === screen);
 
   return (
-    <div style={{ fontFamily: T.font, background: T.bg, height: "100vh", color: T.text, display: "flex", flexDirection: "column", transition: "all 0.18s" }}>
+    <div style={{ fontFamily: T.font, background: T.bg, height: "100vh", width: "100vw", maxWidth: "100vw", overflow: "hidden", color: T.text, display: "flex", flexDirection: "column", transition: "all 0.18s" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2269,7 +2255,7 @@ export default function Floe() {
       </div>
 
       {/* Body */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", minWidth: 0 }}>
 
         {/* Sidebar */}
         <div style={{
