@@ -32,6 +32,8 @@ If you understand what this could be and want to help build it, that conversatio
 
 This project wouldn't have been possible if I had read the documentation. I would have just parroted 'read the documentation' because it solved things for me. You often can't see the best solution when sufficient solutions are common.
 
+This is an important side project that I don't have the time to update aside from several planned prototype updates. I want this to be built and will absolutely use it, but it is not my priority.
+
 ---
 
 ## The idea
