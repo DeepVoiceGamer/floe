@@ -1,4 +1,4 @@
-# floe
+# Floe
 
 **About**
 
